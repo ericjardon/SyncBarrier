@@ -18,9 +18,6 @@ Future version: input user values: given an MxN matrix and an integer K, perform
 #include "matrix.h"
 #include "barrier.h"
 
-#define M_LEN 3
-
-
 /* Method declarations */
 void writeToResult(int key, int value, int pos);
 int dotProduct(int rowVector[M_LEN], int colVector[M_LEN]);

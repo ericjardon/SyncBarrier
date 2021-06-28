@@ -62,6 +62,7 @@ int initBarrier(Barrier *barrier){
 	return 0;
 }
 
+
 int waitBarrier(Barrier* barrier){
     /* 
     Decrements the barrier counter (number of processes left to reach the barrier) and verifies:
@@ -104,6 +105,7 @@ int waitBarrier(Barrier* barrier){
     for(int i =0;i<barrier->size;i++){
 		sem_post(sem);      // Free every waiting process
   	}  
+    printf("All processes arrived. Execution may continue");
   
   } else {
     // Calling process is made to wait
