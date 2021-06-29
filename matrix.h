@@ -1,10 +1,10 @@
-#ifndef RESULTVECTOR_H
-#define RESULTVECTOR_H
+#ifndef SHMATRIX_H
+#define SHMATRIX_H
 
-#define M_LEN 3
-
-typedef struct resultVector {
-  int vector[3];
-} resultVector;
+typedef struct ShMatrix {
+  int N;
+  int M[100][100];          // the product accumulated matrix
+  int AUX[100][100];        // the input matrix
+} ShMatrix;
 
 #endif

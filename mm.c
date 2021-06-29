@@ -31,14 +31,10 @@ void randwait(int k) {
 int main() {
   
   Barrier * barr = (Barrier*) malloc(sizeof(Barrier));
-  char semName[6] = "BarSe";
-  char mutexName[7] = "BarMut"; 
   
   // Set barrier attributes
-  strcpy(barr->semName, semName);
   barr->size = NUM_PROC;
   barr->shmKey = 2000;
-  strcpy(barr->mutexName,mutexName);
   initBarrier(barr);
   
 

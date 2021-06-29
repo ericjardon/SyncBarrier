@@ -1,5 +1,9 @@
 #include "barrier.h"
 
+#define ABC "abcdefghijklmnopqrstuvwxyz1234567890"
+#define ABC_LEN 36
+#define NAME_LEN 5
+
 /*
 ORIGINAL DEVELOPMENT TEAM
 - Eric Andrés Jardón Chao (ericjardon)
@@ -12,6 +16,8 @@ Enhanced and optimized in Jun 2021
 
 */
 
+int giveRandomNames(Barrier* barrier);
+
 int initBarrier(Barrier *barrier){
     /* 
     Initializes a Synchronization Barrier and necessary data structures.
@@ -19,7 +25,9 @@ int initBarrier(Barrier *barrier){
     */
 
   printf("\tInitializing Sync Barrier of size %d\n", barrier->size);
-  
+
+  giveRandomNames(barrier);
+
   sem_unlink(barrier->semName);
   sem_unlink(barrier->mutexName);
 
@@ -98,18 +106,16 @@ int waitBarrier(Barrier* barrier){
   (cmp->count)--;
   sem_post(mutex);
 
-  printf("\t we are still waiting for %d processes\n", cmp->count);
+  printf("\t Barrier waiting for %d processes\n", cmp->count);
 
   if(cmp->count==0){
-
     for(int i =0;i<barrier->size;i++){
 		sem_post(sem);      // Free every waiting process
   	}  
-    printf("All processes arrived. Execution may continue");
   
   } else {
     // Calling process is made to wait
-  sem_wait(sem);
+    sem_wait(sem);
   }
 
   sem_close(sem);
@@ -141,6 +147,30 @@ int destroyBarrier(Barrier* barrier){
 
   sem_unlink(barrier->semName);
   sem_unlink(barrier->mutexName);
-	printf("Barrier succesfully destroyed\n");
+	// printf("Barrier succesfully destroyed\n");
 	return 0;
+}
+
+
+int giveRandomNames(Barrier* barrier) {
+    char semName[NAME_LEN+1];
+    char mutexName[NAME_LEN+1];
+
+    memset(semName,'\0',NAME_LEN+1);
+    memset(mutexName,'\0',NAME_LEN+2);
+
+    const char letters[] = ABC;
+    int c;
+    
+    for (c=0; c<NAME_LEN; c++) {
+      int key = rand() % ABC_LEN;
+      int keyb = (key + 1) % ABC_LEN;
+      semName[c] = letters[key];
+      mutexName[c] = letters[keyb];
+    }
+
+    strcpy(barrier->semName, semName);
+    strcpy(barrier->mutexName, mutexName);
+
+    return 0;
 }

@@ -18,13 +18,18 @@ Future version: input user values: given an MxN matrix and an integer K, perform
 #include "matrix.h"
 #include "barrier.h"
 
+#define M_LEN 3
+
+
 /* Method declarations */
-void writeToResult(int key, int value, int pos);
-int dotProduct(int rowVector[M_LEN], int colVector[M_LEN]);
+void writeToResultMatrix(int key, int value, int i, int j);
+
+int rowColumnProd(int matrix[100][100], int* rowVector, int size, int j);
+
 int cleanMemory(int key);
 
 
-/* Prints a vector (array) to console */
+/* Prints a vector (array) horizontally to console */
 void printVector(int* vector, int size) {
   printf("<");
   for (int i=0; i<size-1; i++) {
@@ -35,105 +40,162 @@ void printVector(int* vector, int size) {
 
 
 int main() {
+  int i, j, N, k;
+  int K=1;
 
-  int KEY = 3000;     // key for Result in Shared Memory
-  int vector[M_LEN] = {5, -1, 1}; 
-  int matrix[M_LEN][M_LEN] = {{2,4,8},{7,-1,5},{9,3,-6}};
-  
-  pid_t child_pid, wpid;
-  int status = 0;
-  char semName[6] = "Semaf";
-  char mutexName[7] = "SemafB";
-
-	//CREATE SHARED MEMORY FOR RESULT
+  // open shared memory
+  int KEY1 = 3000;
   int shmid1;
-  if ( (shmid1 = shmget(KEY, sizeof(resultVector), IPC_CREAT | S_IRWXU)) < 0 ) {
+
+  if ( (shmid1 = shmget(KEY1, sizeof(ShMatrix), IPC_CREAT | S_IRWXU)) < 0 ) {
     perror("Error while creating shmget");
     return 1;
   }
 
-  resultVector *rv = (resultVector*) shmat(shmid1, 0, 0);
-  if (rv == (void *) -1) {
+  // associate shm to variable
+  ShMatrix *shm = (ShMatrix*) shmat(shmid1, 0, 0);
+
+  // sanity checks
+  if (shm == (void *) -1) {
     perror("Error while creating shmat1");
     return 1;
   }
 
-  rv->vector[0]= 0;
-  rv->vector[1]= 0;
-  rv->vector[2]= 0;
+  printf("Enter the size of square Matrix (between 1 and 100): ");
+  scanf("%d", &N);
 
-  printf("Input Matrix:\n");
-  for(int r; r<M_LEN; r++) {
-    printVector(&matrix[r][0], M_LEN);
+  shm->N = N;
+
+  printf("Enter the elements of the matrix:\n");
+
+  int val;
+  for (i=0; i<N; i++) {
+    for (j=0; j<N; j++) {
+      scanf("%d", &val);
+      shm->M[i][j] = val;
+      shm->AUX[i][j] = val;
+    }
   }
-  putchar('\n');
-  printf("Input Vector:\n");
-  printVector(&vector[0], M_LEN);
-  putchar('\n');
 
-  printf("\nProcesses to start: %d\n", M_LEN);
-	//Initialize barrier using a struct called Barrier with name of mutex, semaphore, size and key of shared memory 
-  Barrier* barr = malloc(sizeof(Barrier));
-  strcpy(barr->semName, semName);
-	strcpy(barr->mutexName, mutexName);
-  barr->size = M_LEN;
-  barr->shmKey = 2000;
-  initBarrier(barr);
+  printf("PRINTING INPUT MATRIX\n");
+  for (i=0; i<N; i++) {
+    printVector(&(shm->M[i][0]), N);
+  }
 
-  for (int id=0; id<M_LEN; id++) {
+  printf("Enter the desired power (1-10)\n");
+  scanf("%d", &K);
+  printf("Elevate to the %d th power\n", K);
+
+  /* INITIATE MATRIX MULTIPLICATION */
+  pid_t child_pid, wpid;
+  int status = 0;
+
+  printf("\nProcesses to start: %d\n", N);
+
+  /* Synchronization Barrier setup */
+
+  Barrier* barriers[K-1];  // for the k-th power we need k-1 operations
+
+  for (k = 0; k < K-1; k++) {
+    Barrier* barr = malloc(sizeof(Barrier));
+    barr->size = N;
+    barr->shmKey = 2000 + k;
+
+    barriers[k] = barr;
+
+    initBarrier(barriers[k]);    // initialize shared memory and semaphores for the k-th barrier
+    printf("Initialized Barrier with names:\n");
+    puts(barriers[k]->semName);
+    puts(barriers[k]->mutexName);
+  }
+
+  // Fork N processes
+  for (i = 0; i < N; i++) {
+    // For every child process
     if ((child_pid = fork()) == 0) {
-        //printf("Row %d\n", id);
-        int val = dotProduct(matrix[id], vector);
-        writeToResult(KEY, val, id);
-        printf("Process %d reached the barrier\n", id);
-        waitBarrier(barr); // espera al resto
-        printf("We can continue! \n");
+
+        // For every k-th power
+        for (k = 0; k < K-1; k++) {
+          // Make a temporary copy of the i-th row of M
+          int rowCopy[N];
+          for (j = 0; j < N; j++) rowCopy[j] = shm->M[i][j];
+
+          // Compute the product of the i-th row of M with every column of AUX
+          for (j=0; j < N; j ++) {
+            int val = rowColumnProd(shm->AUX, &rowCopy[0], N, j);
+            
+            writeToResultMatrix(KEY1, val, i, j); // row i * col j is written to M[i][j]
+          }
+          
+          waitBarrier(barriers[k]); // waits for the remaining processes
+          printf("Process %d continue\n", i);
+        }
+        printf("Process %d COMPLETED\n", i);
         exit(0);
     }
   }
-  
+
+  /* Parent process waits for all children to exit */
   while ((wpid = wait(&status)) > 0);
-  //printf("All processes finished, we are in parent\n");
-  printf("Result Vector: ");
-  printVector(&rv->vector[0], M_LEN);
-  destroyBarrier(barr);
-  cleanMemory(KEY);
-  return 0; 
-}
 
-//CALCULATE VALUE TO WRITE
-int dotProduct(int rowVector[M_LEN], int colVector[M_LEN]){
-  int sum=0;
-  for (int x=0; x<M_LEN; x++) {
-    sum += rowVector[x] * colVector[x];
+  putchar('\n');
+  printf("RESULTING MATRIX: \n");
+
+  for (i=0; i<N; i++) {
+    printVector(&(shm->M[i][0]), N);
   }
-	return sum;
+
+  putchar('\n');
+
+  for(k = 0; k < K-1; k++) {
+    destroyBarrier(barriers[k]);
+  }
+
+  cleanMemory(KEY1);
+  return 0;
 }
 
-//WRITE IN SHARED MEMORY
-void writeToResult(int key, int value, int pos){
+
+// COMPUTES DOT PRODUCT BETWEEN FIXED ROW AND COLUMN VECTOR AT GIVEN INDEX
+int rowColumnProd(int matrix[100][100], int* rowVector, int size, int j){
+
+  int sum=0;
+  
+  for (int x=0; x<size; x++) {
+    sum += rowVector[x] * matrix[x][j];
+  }
+	
+  return sum;
+}
+
+// WRITE RESULT TO SHARED MEMORY
+void writeToResultMatrix(int key, int value, int i, int j){
 	//Open shared memory
 	int shmid1;
-  if ((shmid1 = shmget(key, sizeof(resultVector), IPC_CREAT | S_IRWXU)) < 0 ) {
+  if ((shmid1 = shmget(key, sizeof(ShMatrix), IPC_CREAT | S_IRWXU)) < 0 ) {
     perror("Error while using shmget in writeToResult\n");
     return;
   }
-  resultVector  *rv = (resultVector*) shmat(shmid1, 0, 0);
-  if (rv == (void *) -1) {
+
+  // Associate to variable
+  ShMatrix  *shm = (ShMatrix*) shmat(shmid1, 0, 0);
+
+  // sanity check
+  if (shm == (void *) -1) {
     perror("Error while using shmat in writeToResult\n");
     return;
   }
-  //WRITE AND NOTIFY
-  rv->vector[pos] = value;
-  printf("Process %d finished writing\n", pos);
-
+  
+  
+  shm->M[i][j] = value;
 }
 
-//CLEAN SHARED MEMORY OF resultVector
+
+//CLEANS SHARED MEMORY
 int cleanMemory(int key){
   printf("Cleaning memory...\n");
   int shmid;
-  if (( shmid = shmget(key,  sizeof(resultVector), S_IRWXU)) < 0 ) {
+  if (( shmid = shmget(key,  sizeof(ShMatrix), S_IRWXU)) < 0 ) {
     perror("Error in shmget while cleaning");
     return 1;
   }
@@ -142,6 +204,6 @@ int cleanMemory(int key){
     perror("Error while cleaning shared memory");
     return 1;
   }
-	printf("Successful cleaning\n");
+	printf("Successfully cleaned Shared Memory\n");
   return 0;
 }
