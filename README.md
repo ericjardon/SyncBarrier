@@ -13,6 +13,13 @@ For learning purposes, this implementation makes use of other built-in synchroni
 - Shared memory blocks
 - The `pthread` library
 
+**To run the demostration program, run `make` in your terminal**.
+The input matrix can be typed in space-separated columns and line-separated rows, like so:
+    2 1 4 -2
+    3 16 1 0
+    1 1 -6 -1
+
+
 ### June 2021 updates
 The Matrix multiplication demo program has been completed.
 Given a square Matrix of size N and an power K, the program computes the K-th power of the input matrix using N processes and K-1 synchronization barriers. 
