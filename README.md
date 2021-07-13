@@ -14,7 +14,8 @@ For learning purposes, this implementation makes use of other built-in synchroni
 - The `pthread` library
 
 **To run the demostration program, run `make` in your terminal**.
-The input matrix can be typed in space-separated columns and line-separated rows, like so:
+The input matrix can be typed in space-separated columns and line-separated rows, like so:   
+
     2 1 4 -2
     3 16 1 0
     1 1 -6 -1
